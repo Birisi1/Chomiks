@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find The Chomiks Heardle </title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --primary: #1db954;
+            --border: #333333;
+            --wrong: #e22134;
+            --empty: #282828;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            width: 100%;
+            max-width: 480px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        /* Header & Toggle */
+        #header-bar {
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 15px;
+        }
+
+        #mode-toggle {
+            background-color: transparent;
+            color: #aaaaaa;
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        #mode-toggle:hover {
+            color: white;
+            border-color: #666;
+        }
+
+        /* Top Bar: Play & Progress */
+        #top-bar {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        #play-btn {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            font-size: 20px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        #progress-container {
+            flex-grow: 1;
+            height: 12px;
+            background-color: var(--empty);
+            position: relative;
+            border-radius: 6px;
+        }
+
+        #progress-bar {
+            height: 100%;
+            background-color: var(--primary);
+            width: 0%;
+            border-radius: 6px;
+            transition: width 0.1s linear;
+        }
+
+        .marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: var(--bg-color);
+        }
+
+        /* Guesses Grid */
+        #guesses-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-grow: 1;
+        }
+
+        .guess-box {
+            border: 1px solid var(--border);
+            height: 45px;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            font-size: 14px;
+            background-color: var(--empty);
+            border-radius: 4px;
+        }
+
+        /* Input Area */
+        #input-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        #guess-input {
+            flex-grow: 1;
+            padding: 12px;
+            background-color: var(--empty);
+            border: 1px solid var(--border);
+            color: white;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        #send-btn, #skip-btn {
+            background-color: var(--border);
+            color: white;
+            border: none;
+            padding: 0 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        #send-btn { background-color: var(--primary); }
+
+        /* Autocomplete List */
+        #autocomplete-list {
+            position: absolute;
+            bottom: 100%; 
+            left: 0;
+            right: 0;
+            background-color: var(--empty);
+            border: 1px solid var(--border);
+            max-height: 200px;
+            overflow-y: auto;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            z-index: 10;
+            display: none;
+            border-radius: 4px;
+        }
+
+        #autocomplete-list li {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+        }
+
+        #autocomplete-list li:hover { background-color: var(--border); }
+
+        /* Modals */
+        .modal {
+            display: none;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .modal h2 { margin-bottom: 10px; }
+        .modal button {
+            margin: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background: var(--primary);
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .stats-text { font-size: 18px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div id="header-bar">
+            <button id="mode-toggle">Search: First Word</button>
+        </div>
+
+        <div id="top-bar">
+            <button id="play-btn">▶</button>
+            <div id="progress-container">
+                <div id="progress-bar"></div>
+                <div id="markers"></div>
+            </div>
+        </div>
+
+        <div id="guesses-grid">
+            <div class="guess-box" id="guess-0"></div>
+            <div class="guess-box" id="guess-1"></div>
+            <div class="guess-box" id="guess-2"></div>
+            <div class="guess-box" id="guess-3"></div>
+            <div class="guess-box" id="guess-4"></div>
+            <div class="guess-box" id="guess-5"></div>
+        </div>
+
+        <div id="input-container">
+            <ul id="autocomplete-list"></ul>
+            <div class="input-row">
+                <input type="text" id="guess-input" placeholder="Guess a song..." autocomplete="off">
+                <button id="send-btn">➤</button>
+            </div>
+            <button id="skip-btn">Skip</button>
+        </div>
+
+        <div id="end-modal" class="modal">
+            <h2 id="end-title">You Won!</h2>
+            <p id="end-song-name">Song Name</p>
+            <div>
+                <button id="next-btn">Next Song</button>
+                <button id="exit-btn">Exit & Stats</button>
+            </div>
+        </div>
+
+        <div id="stats-modal" class="modal">
+            <h2>Your Statistics</h2>
+            <p class="stats-text">Played: <span id="stat-played">0</span></p>
+            <p class="stats-text">Won: <span id="stat-won">0</span></p>
+            <p class="stats-text">Win %: <span id="stat-percent">0</span>%</p>
+            <button onclick="location.reload()">Restart Game</button>
+        </div>
+    </div>
+
+    <script>
+        // --- TWEAKABLE SETTINGS ---
+        const songLibrary = [
+    { title: "Drifting By Dusk", file: "Drifting by Dusk - Find the Chomiks.mp3" },
+    { title: "Good Game", file: "Find the Chomiks - Good Game.mp3" },
+    { title: "Centrepiece", file: "Find the Chomiks OST 001 - Centrepiece.mp3" },
+    { title: "Adornee", file: "Find the Chomiks OST 002 - Adornee.mp3" },
+    { title: "Permafrost", file: "Find the Chomiks OST 003 - Permafrost.mp3" },
+    { title: "Pointy Ribs", file: "Find the Chomiks OST 004 - Pointy Ribs.mp3" },
+    { title: "Cooking Up A Storm", file: "Find the Chomiks OST 005 - Cooking Up a Storm.mp3" },
+    { title: "Magmatism", file: "Find the Chomiks OST 006 - Magmatism.mp3" },
+    { title: "Brimstone", file: "Find the Chomiks OST 007 - Brimstone.mp3" },
+    { title: "Scent Repellant", file: "Find the Chomiks OST 008 - Scent Repellant.mp3" },
+    { title: "Rhapsody Of A Still World", file: "Find the Chomiks OST 009 - Rhapsody of A Still World.mp3" },
+    { title: "Humble Accommodations", file: "Find the Chomiks OST 010 - Humble Accommodations.mp3" },
+    { title: "Needle In A Haystack", file: "Find the Chomiks OST 011 - Needle in a Haystack.mp3" },
+    { title: "Stones And Rocks", file: "Find the Chomiks OST 012 - Stones and Rocks.mp3" },
+    { title: "Reflective", file: "Find the Chomiks OST 013 - Reflective.mp3" },
+    { title: "Bubble Bash", file: "Find the Chomiks OST 014 - Bubble Bash.mp3" },
+    { title: "Ray Had Too Much Candy", file: "Find the Chomiks OST 015 - Ray Had Too Much Candy.mp3" },
+    { title: "Distant Views", file: "Find the Chomiks OST 016 - Distant Views.mp3" },
+    { title: "Rocking The Summit", file: "Find the Chomiks OST 017 - Rocking the Summit.mp3" },
+    { title: "Conceptual Phase", file: "Find the Chomiks OST 018 - Conceptual Phase.mp3" },
+    { title: "Pixel Perfect", file: "Find the Chomiks OST 019 - Pixel Perfect.mp3" },
+    { title: "Cart Riding Fun", file: "Find the Chomiks OST 020 - Cart Riding Fun.mp3" },
+    { title: "Drifting Dunes", file: "Find the Chomiks OST 021 - Drifting Dunes.mp3" },
+    { title: "Beneath The Shifting Sands", file: "Find the Chomiks OST 022 - Beneath the Shifting Sands.mp3" },
+    { title: "Brackish", file: "Find the Chomiks OST 023 - Brackish.mp3" },
+    { title: "Jazzy Jams", file: "Find the Chomiks OST 024 - Jazzy Jams.mp3" },
+    { title: "Crafter", file: "Find the Chomiks OST 025 - Crafter.mp3" },
+    { title: "Thrilling And Drilling", file: "Find the Chomiks OST 026 - Thrilling and Drilling.mp3" },
+    { title: "Pitfall", file: "Find the Chomiks OST 027 - Pitfall.mp3" },
+    { title: "Roygbiv", file: "Find the Chomiks OST 028 - ROYGBIV.mp3" },
+    { title: "Song Of The Satyr", file: "Find the Chomiks OST 029 - Song of the Satyr.mp3" },
+    { title: "Bottom Of The Well", file: "Find the Chomiks OST 030 - Bottom of the Well.mp3" },
+    { title: "World Of Studs", file: "Find the Chomiks OST 031 - World of Studs.mp3" },
+    { title: "Bottom Of The Well (Alternate Version)", file: "Find the Chomiks OST 032 - Bottom of the Well (Alternate Version).mp3" },
+    { title: "Search All You Want", file: "Find the Chomiks OST 033 - Search All You Want.mp3" },
+    { title: "Back To School", file: "Find the Chomiks OST 034 - Back to School.mp3" },
+    { title: "Apartment Jingle", file: "Find the Chomiks OST 035 - Apartment Jingle.mp3" },
+    { title: "Somewhere.", file: "Find the Chomiks OST 037 - Somewhere..mp3" },
+    { title: "Bee Autiful Buzzings", file: "Find the Chomiks OST 038 - Bee-autiful Buzzings.mp3" },
+    { title: "Home Of The Floppa", file: "Find the Chomiks OST 039 - Home of the Floppa.mp3" },
+    { title: "Chromatism", file: "Find the Chomiks OST 040 - Chromatism.mp3" },
+    { title: "Wax And Wane", file: "Find the Chomiks OST 041 - Wax and Wane.mp3" },
+    { title: "Rhythmical Retreat", file: "Find the Chomiks OST 042 - Rhythmical Retreat.mp3" },
+    { title: "Emulation", file: "Find the Chomiks OST 043 - Emulation.mp3" },
+    { title: "Big Grin", file: "Find the Chomiks OST 044 - Big Grin.mp3" },
+    { title: "Troll Hunting", file: "Find the Chomiks OST 045 - Troll Hunting.mp3" },
+    { title: "Out Of The Dark", file: "Find the Chomiks OST 046 - Out of the Dark.mp3" },
+    { title: "Into The Light", file: "Find the Chomiks OST 047 - Into the Light.mp3" },
+    { title: "The Speedrun Blitz", file: "Find the Chomiks OST 048 - The Speedrun Blitz.mp3" },
+    { title: "Echoes Of Inception", file: "Find the Chomiks OST 049 - Echoes of Inception.mp3" },
+    { title: "Proposal", file: "Find the Chomiks OST 050 - Proposal.mp3" },
+    { title: "Raaaah!!  Becomes Devil😈😈", file: "Find the Chomiks OST 051 - RAAAAH!! _Becomes Devil😈😈.mp3" },
+    { title: "Prowra", file: "Find the Chomiks OST 052 - Prowra.mp3" },
+    { title: "Simulation", file: "Find the Chomiks OST 053 - Simulation.mp3" },
+    { title: "Hotspot", file: "Find the Chomiks OST 054 - Hotspot.mp3" },
+    { title: "現代のコンピュー", file: "Find the Chomiks OST 055 - 現代のコンピュー.mp3" },
+    { title: "Fahrenheight", file: "Find the Chomiks OST 056 - Fahrenheight.mp3" },
+    { title: "Hypothetically", file: "Find the Chomiks OST 058 - Hypothetically.mp3" },
+    { title: "Chomcoos", file: "Find the Chomiks OST 059 - ChomcoOS.mp3" },
+    { title: "Grief Concealed", file: "Find the Chomiks OST 060 - Grief Concealed.mp3" },
+    { title: "Time'S Up", file: "Find the Chomiks OST 061 - Time's Up.mp3" },
+    { title: "Athazagoraphobia", file: "Find the Chomiks OST 062 - Athazagoraphobia.mp3" },
+    { title: "Viral Chaos", file: "Find The Chomiks OST 063 - Viral Chaos.mp3" },
+    { title: "Winds Of The Blizzard", file: "Find the Chomiks OST 064 - Winds of the Blizzard.mp3" },
+    { title: "Mist Of Distortion", file: "Find the Chomiks OST 065 - Mist of Distortion.mp3" },
+    { title: "Files Directory Null.Chom", file: "Find the Chomiks OST 066 - files_Directory_null.chom.mp3" },
+    { title: "Piano Puzzle", file: "Find the Chomiks OST 067 - Piano Puzzle.mp3" },
+    { title: "Xolotl", file: "Find the Chomiks OST 068 - Xolotl.mp3" },
+    { title: "Splendor And Majesty", file: "Find the Chomiks OST 069 - Splendor and Majesty.mp3" },
+    { title: "Deus", file: "Find the Chomiks OST 070 - Deus.mp3" },
+    { title: "Out Of Bounds", file: "Find the Chomiks OST 071 - Out of Bounds.mp3" },
+    { title: "Lucidity", file: "Find the Chomiks OST 072 - Lucidity.mp3" },
+    { title: "Ricochet", file: "Find the Chomiks OST 073 - Ricochet.mp3" },
+    { title: "Seriously Intense", file: "Find the Chomiks OST 074 - Seriously Intense.mp3" },
+    { title: "Low Roller", file: "Find the Chomiks OST 075 - Low Roller.mp3" },
+    { title: "Jazz Rush", file: "Find the Chomiks OST 076 - Jazz Rush.mp3" },
+    { title: "Volatile", file: "Find the Chomiks OST 077 - Volatile.mp3" },
+    { title: "A New Day", file: "Find the Chomiks OST 078 - A New Day.mp3" },
+    { title: "Build Enough", file: "Find the Chomiks OST 079 - build enough.mp3" },
+    { title: "Northern Lights", file: "Find the Chomiks OST 080 - Northern Lights.mp3" },
+    { title: "Sauce A Nova", file: "Find the Chomiks OST 081 - Sauce-a Nova.mp3" },
+    { title: "Basalt Grounds", file: "Find the Chomiks OST 082 - Basalt Grounds.mp3" },
+    { title: "Goofy", file: "Find the Chomiks OST 083 - Goofy.mp3" },
+    { title: "Rhapsody Of An Active World", file: "Find the Chomiks OST 084 - Rhapsody of an Active World.mp3" },
+    { title: "Across The Desert", file: "Find the Chomiks OST 085 - Across the Desert.mp3" },
+    { title: "Base 4", file: "Find the Chomiks OST 086 - BASE_4.mp3" },
+    { title: "Freezy", file: "Find the Chomiks OST 087 - Freezy.mp3" },
+    { title: "Hallowed Ground", file: "Find the Chomiks OST 088 - Hallowed Ground.mp3" },
+    { title: "Subaqueous", file: "Find the Chomiks OST 089 - Subaqueous.mp3" },
+    { title: "Fluttering", file: "Find the Chomiks OST 090 - Fluttering.mp3" },
+    { title: "Strum Of Lost Souls", file: "Find the Chomiks OST 091 - Strum of Lost Souls.mp3" },
+    { title: "Crystalline", file: "Find the Chomiks OST 092 - Crystalline.mp3" },
+    { title: "Margin Of Ice", file: "Find the Chomiks OST 093 - Margin of Ice.mp3" },
+    { title: "Shattered Frost", file: "Find the Chomiks OST 094 - Shattered Frost.mp3" },
+    { title: "Solitude", file: "Find the Chomiks OST 095 - Solitude.mp3" },
+    { title: "In The Shade Of The Colossus", file: "Find the Chomiks OST 096 - In the Shade of the Colossus.mp3" },
+    { title: "Hall Of Judgement", file: "Find the Chomiks OST 097 - Hall of Judgement.mp3" },
+    { title: "Venerated Wrath", file: "Find the Chomiks OST 098 - VENERATED WRATH.mp3" },
+    { title: "Nexus", file: "Find the Chomiks OST 100 - Nexus.mp3" },
+    { title: "Down The Memory Lane", file: "Find the Chomiks OST 101 - Down the Memory Lane.mp3" },
+    { title: "Dimensional Collision", file: "Find the Chomiks OST 102 - Dimensional Collision.mp3" },
+    { title: "Ethereal Skies", file: "Find the Chomiks OST 103 - Ethereal Skies.mp3" },
+    { title: "Fairytales And Fantasies", file: "Find the Chomiks OST 104 - Fairytales and Fantasies.mp3" },
+    { title: "Captive", file: "Find the Chomiks OST 105 - Captive.mp3" },
+    { title: "Only Great Deals", file: "Find the Chomiks OST 106 - Only Great Deals.mp3" },
+    { title: "Mechanical Mangrove", file: "Find the Chomiks OST 107 - Mechanical Mangrove.mp3" },
+    { title: "The Gears That Turned The Before Times", file: "Find the Chomiks OST 109 - The Gears That Turned The Before Times.mp3" },
+    { title: "Coated In Crimson", file: "Find the Chomiks OST 110 - Coated in Crimson.mp3" },
+    { title: "Data Dive", file: "Find the Chomiks OST 111 - Data Dive.mp3" },
+    { title: "Chip Away", file: "Find the Chomiks OST 112 - Chip Away.mp3" },
+    { title: "The Burrows", file: "Find the Chomiks OST 113 - The Burrows.mp3" },
+    { title: "Enigma", file: "Find the Chomiks OST 114 - Enigma.mp3" },
+    { title: "A State Of Serenity", file: "Find the Chomiks OST 116 - A State of Serenity.mp3" },
+    { title: "Hypothermia", file: "Find The Chomiks OST 117 - Hypothermia.mp3" },
+    { title: "Uldragunn, The Broken Reality", file: "Find the Chomiks OST 118 - Uldragunn, the Broken Reality.mp3" },
+    { title: "Scaling Up The World Tree", file: "Find the Chomiks OST 119 - Scaling Up the World Tree.mp3" },
+    { title: "Niflheim", file: "Find the Chomiks OST 120 - Niflheim.mp3" },
+    { title: "Reality Holder", file: "Find the Chomiks OST 121 - Reality Holder.mp3" },
+    { title: "Apólyto Pandaimónio", file: "Find the Chomiks OST 122 - apólyto pandaimónio.mp3" },
+    { title: "Final Steps Of The True End", file: "Find the Chomiks OST 123 - Final Steps of the True End.mp3" },
+    { title: "Surrender To Destiny", file: "Find the Chomiks OST 124 - Surrender to Destiny.mp3" },
+    { title: "Looming Void", file: "Find the Chomiks OST 125 - Looming Void.mp3" },
+    { title: "Energy Surge", file: "Find the Chomiks OST 126 - Energy Surge.mp3" },
+    { title: "Lunar Embrace", file: "Find the Chomiks OST 127 - Lunar Embrace.mp3" },
+    { title: "World Devoid Of Sun", file: "Find the Chomiks OST 128 - World Devoid of Sun.mp3" },
+    { title: "Run", file: "Find the Chomiks OST 129 - RUN.mp3" },
+    { title: "Interlude", file: "Find the Chomiks OST 130 - Interlude.mp3" },
+    { title: "Fancy Heliotrope", file: "Find the Chomiks OST 131  - Fancy Heliotrope.mp3" },
+    { title: "Boiler Quarters", file: "Find the Chomiks OST 132 - Boiler Quarters.mp3" },
+    { title: "The Seeds Of Past Memories", file: "Find the Chomiks OST 133 - The Seeds of Past Memories.mp3" },
+    { title: "Unleash The Fury", file: "Find the Chomiks OST 134 - Unleash the Fury.mp3" },
+    { title: "Who'S Home ", file: "Find the Chomiks OST 135 - Who's Home_.mp3" },
+    { title: "Monochromatic", file: "Find the Chomiks OST 136 - Monochromatic.mp3" },
+    { title: "Sparkly Paradise", file: "Find the Chomiks OST 137 - Sparkly Paradise.mp3" },
+    { title: "Darker Corners", file: "Find the Chomiks OST 138 - Darker Corners.mp3" },
+    { title: "Maelstrom Of Madness", file: "Find the Chomiks OST 139 - Maelstrom of Madness.mp3" },
+    { title: "Glory At Hand", file: "Find the Chomiks OST 140 - Glory at Hand.mp3" },
+    { title: "Fun Fun Fun", file: "Find the Chomiks OST 141 - FUN FUN FUN.mp3" },
+    { title: "Impure Silence", file: "Find the Chomiks OST 142 - Impure Silence.mp3" },
+    { title: "Quarter Pounder", file: "Find the Chomiks OST 143 - Quarter Pounder.mp3" },
+    { title: "Entity In Aisle Four", file: "Find the Chomiks OST 144 - Entity in Aisle Four.mp3" },
+    { title: "It Might'Ve Taken A While", file: "Find the Chomiks OST 145 - It Might've Taken A While.mp3" },
+    { title: "Secret Showdown", file: "Find the Chomiks OST 146 - Secret Showdown.mp3" },
+    { title: "Terminal", file: "Find the Chomiks OST 147 - Terminal.mp3" },
+    { title: "Oddball", file: "Find the Chomiks OST 148 - Oddball.mp3" },
+    { title: "Twilight Saunter By The Wayside", file: "Find the Chomiks OST 149 - twilight saunter by the wayside.mp3" },
+    { title: "The Dances Under The Nights", file: "Find the Chomiks OST 150 - The Dances Under The Nights.mp3" },
+    { title: "Drifting By Dusk", file: "Find the Chomiks OST 151 - Drifting by Dusk.mp3" },
+    { title: "Circuit Breaker", file: "Find the Chomiks OST 152 - Circuit Breaker.mp3" },
+    { title: "Uber Alllies", file: "Find the Chomiks OST 153 - Uber Alllies.mp3" },
+    { title: "To Take Down A Giant", file: "Find the Chomiks OST 154 - To Take Down a Giant.mp3" },
+    { title: "Dark Reality", file: "Find the Chomiks OST 155 - Dark Reality.mp3" },
+    { title: "Wisphead", file: "Find the Chomiks OST 156 - Wisphead.mp3" },
+    { title: "Ideas Can Form Nightmares", file: "Find the Chomiks OST 157 - Ideas Can Form Nightmares.mp3" },
+    { title: "Citadine Canopy", file: "Find the Chomiks OST 158 - Citadine Canopy.mp3" },
+    { title: "Cursed Battlegrounds", file: "Find the Chomiks OST 159 - Cursed Battlegrounds.mp3" },
+    { title: "Overdone Schnitzel", file: "Find the Chomiks OST 160 - Overdone Schnitzel.mp3" },
+    { title: "Brachistochrone  Phase 1", file: "Find the Chomiks OST 161 - Brachistochrone_ Phase 1.mp3" },
+    { title: "Brachistochrone  Phase 2", file: "Find the Chomiks OST 162 - Brachistochrone_ Phase 2.mp3" },
+    { title: "Brachistochrone  Phase 3", file: "Find the Chomiks OST 163 - Brachistochrone_ Phase 3.mp3" },
+    { title: "Brachistochrone  Phase 4", file: "Find the Chomiks OST 164 - Brachistochrone_ Phase 4.mp3" },
+    { title: "Welcome To Capital City", file: "Find the Chomiks OST 165 - Welcome to Capital City.mp3" },
+    { title: "The Homer Maze", file: "Find the Chomiks OST 166 - THE HOMER MAZE.mp3" },
+    { title: "Presented To You By Chomik Gaming Co.", file: "Find the Chomiks OST 167 - Presented to you by Chomik Gaming Co..mp3" },
+    { title: "This Isnt My House", file: "Find the Chomiks OST 168 - This Isnt My House.mp3" },
+    { title: "The Chom Games", file: "Find the Chomiks OST 169 - The Chom Games.mp3" },
+    { title: "One Lucky Day", file: "Find the Chomiks OST 170 - One Lucky Day.mp3" },
+    { title: "The End", file: "Find the Chomiks OST 171 - The End.mp3" },
+    { title: "Studs Of Wonder", file: "Find The Chomiks OST Archive 031 - Studs of Wonder.mp3" },
+    { title: "Pillars Of Plight", file: "Find The Chomiks OST Archive 033 - Pillars of Plight.mp3" },
+    { title: "Byte Sized", file: "Find The Chomiks OST Archive 111 - Byte-sized.mp3" },
+    { title: "Escaping Storage", file: "Find The Chomiks OST Archive 127 - Escaping Storage.mp3" },
+    { title: "Stay A While", file: "Find The Chomiks OST Archive 128 - Stay a While.mp3" },
+    { title: "An Endless Alley", file: "Find The Chomiks OST Archive 134 - An Endless Alley.mp3" },
+    { title: "10 8 7", file: "Find The Chomiks OST Archive 140 - 10_8_7.mp3" },
+    { title: "A State Of Serenity (Old)", file: "Find the Chomiks OST EXTRAS - A State of Serenity (OLD).mp3" },
+    { title: "Chromatism (Alternate Version)", file: "Find the Chomiks OST EXTRAS - Chromatism (Alternate Version).mp3" },
+    { title: "Down The Conveyor Belt", file: "Find the Chomiks OST EXTRAS - Down the Conveyor Belt.mp3" },
+    { title: "Entity In Aisle Four (Clean)", file: "Find the Chomiks OST EXTRAS - Entity in Aisle Four (Clean).mp3" },
+    { title: "Fancy Heliotrope", file: "Find the Chomiks OST EXTRAS - Fancy Heliotrope.mp3" },
+    { title: "Grace Of The Overlord", file: "Find the Chomiks OST EXTRAS - Grace of the Overlord.mp3" },
+    { title: "Jazz Rush (Old Version)", file: "Find the Chomiks OST EXTRAS - Jazz Rush (Old Version).mp3" },
+    { title: "Jazzy Jams (Old Version)", file: "Find the Chomiks OST EXTRAS - Jazzy Jams (Old version).mp3" },
+    { title: "Only Great Deals (Full Version)", file: "Find the Chomiks OST EXTRAS - Only Great Deals (Full version).mp3" },
+    { title: "Out Of The Dark (Reversed)", file: "Find the Chomiks OST EXTRAS - Out of the Dark (Reversed).mp3" },
+    { title: "Permafrost (Ost Remix)", file: "Find the Chomiks OST EXTRAS - Permafrost (OST Remix).mp3" },
+    { title: "Prime", file: "Find the Chomiks OST EXTRAS - PRIME.mp3" },
+    { title: "Search All You Want (Old Version)", file: "Find the Chomiks OST EXTRAS - Search All You Want (Old Version).mp3" },
+    { title: "White Nexus (Alternate Mix)", file: "Find the Chomiks OST EXTRAS - White Nexus (Alternate Mix).mp3" },
+    { title: "White⚔Excalibur", file: "Find The Chomiks OST EXTRAS - WHITE⚔EXCALIBUR.mp3" },
+    { title: "Find The Cones Ost 099   Strange Situation", file: "Find the Cones OST 099 - Strange situation.mp3" },
+    { title: "End Of Everything", file: "FTC OST - End of Everything.mp3" },
+    { title: "Infernal Abyss", file: "FTC OST - Infernal Abyss.mp3" },
+    { title: "Judgement Time", file: "FTC OST - Judgement Time.mp3" },
+    { title: "Xolotl", file: "Xolotl - Find the Chomiks.mp3" }
+];
+
+        const guessDurations = [3, 6, 9, 14, 21, 30]; 
+        const MAX_GUESSES = 6;
+        const MAX_DURATION = guessDurations[guessDurations.length - 1]; 
+
+        // --- GAME STATE ---
+        let currentSongIndex = -1;
+        let availableSongs = [...songLibrary];
+        let currentGuess = 0;
+        let isPlaying = false;
+        let isGameOver = false;
+        let searchMode = 'first'; // Can be 'first' or 'any'
+        let audio = new Audio();
+        let animationFrame;
+        let stats = { played: 0, won: 0 };
+
+        // DOM Elements
+        const playBtn = document.getElementById('play-btn');
+        const progressBar = document.getElementById('progress-bar');
+        const markersContainer = document.getElementById('markers');
+        const guessInput = document.getElementById('guess-input');
+        const sendBtn = document.getElementById('send-btn');
+        const skipBtn = document.getElementById('skip-btn');
+        const autocompleteList = document.getElementById('autocomplete-list');
+        const endModal = document.getElementById('end-modal');
+        const statsModal = document.getElementById('stats-modal');
+        const modeToggleBtn = document.getElementById('mode-toggle');
+
+        function initGame() {
+            if (availableSongs.length === 0) {
+                alert("No more songs! Showing stats.");
+                showStats();
+                return;
+            }
+
+            const randIndex = Math.floor(Math.random() * availableSongs.length);
+            const selectedSong = availableSongs[randIndex];
+            audio.src = selectedSong.file;
+            currentSongIndex = songLibrary.indexOf(selectedSong);
+            
+            availableSongs.splice(randIndex, 1);
+
+            currentGuess = 0;
+            isGameOver = false;
+            guessInput.value = '';
+            endModal.style.display = 'none';
+            playBtn.innerText = '▶';
+            progressBar.style.width = '0%';
+            
+            for(let i=0; i<MAX_GUESSES; i++) {
+                const box = document.getElementById(`guess-${i}`);
+                if (box) {
+                    box.innerText = '';
+                    box.style.borderColor = 'var(--border)';
+                    box.style.color = 'var(--text-color)';
+                }
+            }
+            
+            drawMarkers();
+        }
+
+        // --- SEARCH TOGGLE LOGIC ---
+        if (modeToggleBtn) {
+            modeToggleBtn.addEventListener('click', () => {
+                if (searchMode === 'first') {
+                    searchMode = 'any';
+                    modeToggleBtn.innerText = 'Search: Any Word';
+                } else {
+                    searchMode = 'first';
+                    modeToggleBtn.innerText = 'Search: First Word';
+                }
+                updateAutocomplete(); 
+            });
+        }
+
+        // Helper function to find matches based on the current mode
+        function getMatches(query) {
+            const searchStr = query.trim().toLowerCase();
+            
+            // FIXED: If the query is completely empty, return all songs!
+            if (searchStr === "") return songLibrary;
+            
+            return songLibrary.filter(s => {
+                const titleLower = s.title.toLowerCase();
+                if (searchMode === 'first') {
+                    return titleLower.startsWith(searchStr);
+                } else {
+                    return titleLower.startsWith(searchStr) || titleLower.includes(` ${searchStr}`);
+                }
+            });
+        }
+
+        // --- AUDIO LOGIC ---
+        if (playBtn) playBtn.addEventListener('click', toggleAudio);
+
+        function toggleAudio() {
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                playBtn.innerText = '▶';
+                cancelAnimationFrame(animationFrame);
+            } else {
+                isPlaying = true; 
+                audio.currentTime = 0; 
+                audio.play().catch(e => {
+                    isPlaying = false;
+                    alert("Audio file not found! Check your filenames.");
+                });
+                
+                if (isPlaying) {
+                    playBtn.innerText = '⏸';
+                    updateProgress(); 
+                }
+            }
+        }
+
+        audio.addEventListener('ended', () => {
+            isPlaying = false;
+            if (playBtn) playBtn.innerText = '▶';
+            cancelAnimationFrame(animationFrame);
+        });
+
+        function updateProgress() {
+            if (!isPlaying) return;
+            
+            const currentAllowedTime = isGameOver ? audio.duration : guessDurations[currentGuess];
+            
+            if (!isGameOver && audio.currentTime >= currentAllowedTime) {
+                audio.pause();
+                audio.currentTime = currentAllowedTime; 
+                isPlaying = false;
+                if (playBtn) playBtn.innerText = '▶';
+                return; 
+            }
+
+            const width = (audio.currentTime / MAX_DURATION) * 100;
+            if (progressBar) progressBar.style.width = `${Math.min(width, 100)}%`;
+
+            animationFrame = requestAnimationFrame(updateProgress);
+        }
+
+        function drawMarkers() {
+            if (!markersContainer) return;
+            markersContainer.innerHTML = '';
+            guessDurations.forEach(duration => {
+                const marker = document.createElement('div');
+                marker.className = 'marker';
+                marker.style.left = `${(duration / MAX_DURATION) * 100}%`;
+                markersContainer.appendChild(marker);
+            });
+        }
+
+        // --- AUTOCOMPLETE & GUESSING ---
+        if (guessInput) {
+            guessInput.addEventListener('focus', updateAutocomplete);
+            guessInput.addEventListener('input', updateAutocomplete);
+        }
+
+        function updateAutocomplete() {
+            if(isGameOver || !autocompleteList) return;
+            
+            const matches = getMatches(guessInput.value);
+            autocompleteList.innerHTML = '';
+            
+            if (matches.length > 0) {
+                autocompleteList.style.display = 'block';
+                matches.forEach(match => {
+                    const li = document.createElement('li');
+                    li.innerText = match.title;
+                    li.onclick = () => {
+                        guessInput.value = match.title;
+                        autocompleteList.style.display = 'none';
+                        submitGuess();
+                    };
+                    autocompleteList.appendChild(li);
+                });
+            } else {
+                autocompleteList.style.display = 'none';
+            }
+        }
+
+        document.addEventListener('click', (e) => {
+            if(e.target !== guessInput && autocompleteList) autocompleteList.style.display = 'none';
+        });
+
+        if (sendBtn) sendBtn.addEventListener('click', submitGuess);
+        if (skipBtn) skipBtn.addEventListener('click', () => submitGuess(true));
+        
+        if (guessInput) {
+            guessInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const matches = getMatches(guessInput.value);
+                    if (matches.length === 1 && guessInput.value.trim() !== '') {
+                        guessInput.value = matches[0].title;
+                    }
+                    submitGuess();
+                    if (autocompleteList) autocompleteList.style.display = 'none';
+                }
+            });
+        }
+
+        function submitGuess(isSkip = false) {
+            if (isGameOver || currentGuess >= MAX_GUESSES) return;
+
+            const userGuess = guessInput.value.trim();
+            if (!isSkip && userGuess === "") return;
+
+            const correctTitle = songLibrary[currentSongIndex].title;
+            const box = document.getElementById(`guess-${currentGuess}`);
+            
+            if (box) {
+                if (isSkip) {
+                    box.innerText = "SKIPPED";
+                    box.style.color = '#888';
+                } else {
+                    box.innerText = userGuess;
+                    if (userGuess.toLowerCase() === correctTitle.toLowerCase()) {
+                        box.style.borderColor = 'var(--primary)';
+                        box.style.color = 'var(--primary)';
+                        endGame(true);
+                        return;
+                    } else {
+                        box.style.borderColor = 'var(--wrong)';
+                        box.style.color = 'var(--wrong)';
+                    }
+                }
+            }
+
+            currentGuess++;
+            guessInput.value = '';
+            
+            if (isPlaying) {
+                audio.pause();
+                isPlaying = false;
+                cancelAnimationFrame(animationFrame);
+            }
+            if (playBtn) playBtn.innerText = '▶';
+            if (progressBar) progressBar.style.width = '0%';
+
+            if (currentGuess >= MAX_GUESSES) {
+                endGame(false);
+            }
+        }
+
+        function endGame(won) {
+            isGameOver = true;
+            stats.played++;
+            if (won) stats.won++;
+
+            audio.currentTime = 0;
+
+            const title = document.getElementById('end-title');
+            if (title) {
+                title.innerText = won ? "You Got It!" : "Out of Guesses!";
+                title.style.color = won ? "var(--primary)" : "var(--wrong)";
+            }
+            
+            const songNameEl = document.getElementById('end-song-name');
+            if (songNameEl) songNameEl.innerText = songLibrary[currentSongIndex].title;
+            
+            if (endModal) endModal.style.display = 'flex';
+        }
+
+        const nextBtn = document.getElementById('next-btn');
+        const exitBtn = document.getElementById('exit-btn');
+        if (nextBtn) nextBtn.addEventListener('click', initGame);
+        if (exitBtn) exitBtn.addEventListener('click', showStats);
+
+        function showStats() {
+            if (endModal) endModal.style.display = 'none';
+            
+            const statPlayed = document.getElementById('stat-played');
+            const statWon = document.getElementById('stat-won');
+            const statPercent = document.getElementById('stat-percent');
+            
+            if (statPlayed) statPlayed.innerText = stats.played;
+            if (statWon) statWon.innerText = stats.won;
+            
+            const percent = stats.played === 0 ? 0 : Math.round((stats.won / stats.played) * 100);
+            if (statPercent) statPercent.innerText = percent;
+            
+            if (statsModal) statsModal.style.display = 'flex';
+        }
+
+        // Start the game!
+        initGame();
+    </script>
+</body>
+</html>
